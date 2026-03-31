@@ -1,7 +1,9 @@
 import { useRef, useEffect, useState } from "react";
 import Editor from "@monaco-editor/react";
 import useMonacoBinding from "../collaboration/useMonacoBinding";
+import useAwareness from "../collaboration/useAwareness";
 import { useEditorStore } from "../../store/useEditorStore";
+import { useAppStore } from "../../store/useAppStore";
 
 export default function EditorView() {
   const editorRef = useRef(null);
@@ -11,6 +13,9 @@ export default function EditorView() {
   const modelsRef = useRef({});
   const [activeModel, setActiveModel] = useState(null);
   const activeFileId = useEditorStore((s) => s.activeFileId);
+
+  // App User details for live cursors
+  const user = useAppStore((s) => s.user) || { name: "Guest", color: "#eacc22" };
 
   useEffect(() => {
     if (!editorRef.current || !monacoRef.current || !activeFileId) return;
@@ -36,6 +41,13 @@ export default function EditorView() {
 
   // Use the refined Monaco handler keeping YText syncing independently scoped to file instances
   useMonacoBinding(editorRef.current, activeModel, activeFileId);
+
+  // Phase 7: Enable LIVE cursors via completely decoupled observer explicitly bound to internal Monaco events
+  useAwareness({
+    editor: editorRef.current,
+    activeFileId,
+    user
+  });
 
   return (
     <Editor

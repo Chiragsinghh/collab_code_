@@ -22,7 +22,7 @@ class YjsStore {
     this.doc = new Y.Doc();
 
     this.provider = new WebsocketProvider(
-      "ws://localhost:5001/yjs",
+      `ws://localhost:5001/yjs/${roomId}`,
       roomId,
       this.doc
     );

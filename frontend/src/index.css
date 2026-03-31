@@ -7,3 +7,17 @@
 body {
   overflow: hidden;
 }
+
+.remote-cursor {
+  border-left: 2px solid red;
+  margin-left: -1px;
+}
+
+.remote-cursor-label {
+  background: red;
+  color: white;
+  font-size: 10px;
+  padding: 2px 4px;
+  margin-left: 5px;
+  border-radius: 4px;
+}
