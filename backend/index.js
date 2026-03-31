@@ -3,9 +3,22 @@ const http = require("http");
 const WebSocket = require("ws");
 const { setupWSConnection } = require("y-websocket/bin/utils");
 const cors = require("cors");
-
+const mongoose = require("mongoose");
+const projectRoutes = require("./routes/projectRoutes");
 const app = express();
-app.use(cors());
+app.use(
+  cors({
+    origin: "http://localhost:5173",
+    methods: ["GET", "POST"],
+    credentials: true,
+  })
+);
+app.use(express.json()); // Enable JSON body parsing for payload sizes
+
+// Basic Mongoose startup mapping natively to backend Docker or local instance
+mongoose.connect("mongodb://localhost:27017/collabcode");
+
+app.use("/project", projectRoutes);
 
 // Initialize HTTP server needed for protocol upgrade
 const server = http.createServer(app);
