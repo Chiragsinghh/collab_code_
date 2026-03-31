@@ -1,54 +1,45 @@
 const express = require("express");
 const http = require("http");
-const { Server } = require("socket.io");
-const cors = require("cors");
 const WebSocket = require("ws");
 const { setupWSConnection } = require("y-websocket/bin/utils");
+const cors = require("cors");
 
 const app = express();
 app.use(cors());
 
+// Initialize HTTP server needed for protocol upgrade
 const server = http.createServer(app);
 
-// ✅ Socket.IO (chat)
-const io = new Server(server, {
-  cors: {
-    origin: "*",
-    methods: ["GET", "POST"],
-  },
-});
-
-io.on("connection", (socket) => {
-  console.log("Socket.io Connected:", socket.id);
-  socket.on("join-room", (roomId) => {
-    socket.join(roomId);
-  });
-  socket.on("send-message", (data) => {
-    io.to(data.roomId).emit("receive-message", data);
-  });
-});
-
-// ✅ Yjs WebSocket server
+// Yjs WebSocket Server (No automatic listening, we handle upgrade manually)
 const wss = new WebSocket.Server({ noServer: true });
 
 wss.on("connection", (conn, req) => {
-  // We need to strip the '/yjs' prefix for y-websocket to find the room name correctly
-  req.url = req.url.replace('/yjs', '');
+  console.log("🟢 Yjs client connected to room:", req.url);
   setupWSConnection(conn, req);
 });
 
+// Manual HTTP -> WebSocket upgrade handling
 server.on("upgrade", (request, socket, head) => {
-  const { pathname } = new URL(request.url, `http://${request.headers.host}`);
-  
-  if (pathname.startsWith("/yjs")) {
+  const url = new URL(request.url, `http://${request.headers.host}`);
+
+  if (url.pathname.startsWith("/yjs/")) {
+    const roomId = url.pathname.replace("/yjs/", "");
+
+    console.log("🔗 Upgrade request for room:", roomId);
+
     wss.handleUpgrade(request, socket, head, (ws) => {
+      // y-websocket expects the url to be strictly the roomname
+      request.url = `/${roomId}`; 
       wss.emit("connection", ws, request);
     });
+  } else {
+    socket.destroy();
   }
-  // Socket.io handles its own upgrades automatically through the http server
 });
 
 const PORT = 5001;
+
 server.listen(PORT, () => {
-  console.log(`Backend running on http://localhost:${PORT}`);
+  console.log(`🚀 CollabCode Backend running on port ${PORT}`);
+  console.log(`🔌 WebSocket server at ws://localhost:${PORT}/yjs/:roomId`);
 });
