@@ -9,7 +9,7 @@ class YjsStore {
   }
 
   init(roomId) {
-    if (this.roomId === roomId && this.doc) return; // avoid re-init if already requested
+    if (this.roomId === roomId && this.doc) return;
 
     if (this.provider) {
       this.provider.destroy();
@@ -20,16 +20,16 @@ class YjsStore {
 
     this.roomId = roomId;
     this.doc = new Y.Doc();
-
+    
+    // Single global provider for the room
     this.provider = new WebsocketProvider(
       `ws://localhost:5001/yjs/${roomId}`,
       roomId,
       this.doc
     );
 
-    // 🔥 DEBUG (VERY IMPORTANT)
     this.provider.on("status", (event) => {
-      console.log("🔌 Yjs status:", event.status);
+      console.log(`🔌 Yjs Websocket status: ${event.status} (Room: ${roomId})`);
     });
   }
 
@@ -40,6 +40,7 @@ class YjsStore {
 
   destroy() {
     if (this.provider) {
+      this.provider.disconnect();
       this.provider.destroy();
       this.provider = null;
     }

@@ -17,32 +17,36 @@ export default function EditorView() {
   // App User details for live cursors
   const user = useAppStore((s) => s.user) || { name: "Guest", color: "#eacc22" };
 
+  // Sync activeFileId with the Monaco editor model
   useEffect(() => {
     if (!editorRef.current || !monacoRef.current || !activeFileId) return;
 
     const editor = editorRef.current;
+    const monaco = monacoRef.current;
     
     // Acquire a previously generated cached model from reference otherwise build anew
     let model = modelsRef.current[activeFileId];
 
     if (!model) {
-      model = monacoRef.current.editor.createModel(
-        "", 
-        undefined, 
-        monacoRef.current.Uri.parse(`file:///${activeFileId}`)
-      );
+      // Create a unique URI for Monaco to distinguish models
+      const uri = monaco.Uri.parse(`file:///${activeFileId}`);
+      model = monaco.editor.createModel("", undefined, uri);
       modelsRef.current[activeFileId] = model;
     }
 
+    // Set the editor to use the cached model and update React state
+    // so `useMonacoBinding` triggers.
     editor.setModel(model);
-    setActiveModel(model);
+    
+    // Only set state if the model actually changed to avoid re-render loops
+    setActiveModel((prev) => (prev !== model ? model : prev));
 
   }, [activeFileId]);
 
   // Use the refined Monaco handler keeping YText syncing independently scoped to file instances
   useMonacoBinding(editorRef.current, activeModel, activeFileId);
 
-  // Phase 7: Enable LIVE cursors via completely decoupled observer explicitly bound to internal Monaco events
+  // Enable LIVE cursors via completely decoupled observer explicitly bound to internal Monaco events
   useAwareness({
     editor: editorRef.current,
     activeFileId,
@@ -61,11 +65,8 @@ export default function EditorView() {
         if (activeFileId) {
           let model = modelsRef.current[activeFileId];
           if (!model) {
-            model = monaco.editor.createModel(
-              "", 
-              undefined, 
-              monaco.Uri.parse(`file:///${activeFileId}`)
-            );
+            const uri = monaco.Uri.parse(`file:///${activeFileId}`);
+            model = monaco.editor.createModel("", undefined, uri);
             modelsRef.current[activeFileId] = model;
           }
           editor.setModel(model);
