@@ -1,27 +1,34 @@
+require("dotenv").config();
 const express = require("express");
 const http = require("http");
 const WebSocket = require("ws");
 const { setupWSConnection } = require("y-websocket/bin/utils");
 const cors = require("cors");
 const connectDB = require("./db/mongo");
+
 const projectRoutes = require("./routes/projectRoutes");
+const authRoutes = require("./routes/authRoutes");
 
 const app = express();
+
 app.use(
   cors({
     origin: "http://localhost:5173",
-    methods: ["GET", "POST"],
+    methods: ["GET", "POST", "PUT", "DELETE"],
     credentials: true,
+    allowedHeaders: ["Content-Type", "Authorization"]
   })
 );
 
-// Enable large JSON body parsing to comfortably map base64 Y.Doc array payloads (usually 5-20mbs worst case)
 app.use(express.json({ limit: "50mb" })); 
 
 // Spin up persistence
 connectDB();
 
+// Routes
+app.use("/auth", authRoutes);
 app.use("/project", projectRoutes);
+
 const server = http.createServer(app);
 
 // Yjs WebSocket Server (No automatic listening, we handle upgrade manually)
@@ -42,7 +49,6 @@ server.on("upgrade", (request, socket, head) => {
     console.log("🔗 Upgrade request for room:", roomId);
 
     wss.handleUpgrade(request, socket, head, (ws) => {
-      // y-websocket expects the url to be strictly the roomname
       request.url = `/${roomId}`; 
       wss.emit("connection", ws, request);
     });
@@ -51,7 +57,7 @@ server.on("upgrade", (request, socket, head) => {
   }
 });
 
-const PORT = 5001;
+const PORT = process.env.PORT || 5001;
 
 server.listen(PORT, () => {
   console.log(`🚀 CollabCode Backend running on port ${PORT}`);

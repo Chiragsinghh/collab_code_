@@ -5,8 +5,10 @@ export const useExecutionStore = create((set, get) => ({
   compiledCode: '',
   consoleLogs: [],
   errors: [],
+  isRunning: false,
 
   clearConsole: () => set({ consoleLogs: [], errors: [] }),
+  setIsRunning: (status) => set({ isRunning: status }),
 
   addLog: (logArgs) => {
     set((state) => ({
@@ -22,43 +24,69 @@ export const useExecutionStore = create((set, get) => ({
 
   runCode: () => {
     get().clearConsole();
-
+    get().setIsRunning(true);
+  
     const doc = yjsStore.doc;
     if (!doc) {
       get().addError("Y.Doc not initialized.");
       return;
     }
-
+  
     const yMap = doc.getMap("fileTree");
     const root = yMap.get("root");
-    
-    // Find file id by name
-    const findFileIdByName = (yNode, name) => {
-      if (!yNode) return null;
-      if (yNode.get("type") === "file" && yNode.get("name") === name) {
-        return yNode.get("id");
+  
+    // 🔍 Traverse all files
+    const files = {};
+  
+    const traverse = (node) => {
+      if (!node) return;
+  
+      if (node.get("type") === "file") {
+        const id = node.get("id");
+        const name = node.get("name");
+  
+        const text = yjsStore.getOrCreateText(id);
+        files[name] = text ? text.toString() : "";
       }
-      const children = yNode.get("children");
+  
+      const children = node.get("children");
       if (children) {
-        for (let child of children.toArray()) {
-          const found = findFileIdByName(child, name);
-          if (found) return found;
-        }
+        children.forEach(traverse);
       }
-      return null;
     };
-
-    const getFileContent = (name) => {
-      const id = findFileIdByName(root, name);
-      if (!id) return "";
-      const text = yjsStore.getOrCreateText(id);
-      return text ? text.toString() : "";
-    };
-
-    const htmlContent = getFileContent('index.html');
-    const cssContent = getFileContent('style.css');
-    const jsContent = getFileContent('script.js');
-
+  
+    traverse(root);
+  
+    // 🧠 Extract files
+    let htmlContent = files["index.html"] || "";
+    const cssContent = files["style.css"] || "";
+  
+    // 🔥 Collect ALL JS FILES
+    let allJS = "";
+  
+    Object.keys(files).forEach((file) => {
+      if (
+        file.endsWith(".js") &&
+        !file.includes("server") &&
+        !file.includes("backend")
+      ) {
+        let code = files[file];
+    
+        code = code.replace(/import .* from .*;/g, "");
+        code = code.replace(/export default /g, "");
+        code = code.replace(/export /g, "");
+    
+        allJS += `\n// FILE: ${file}\n${code}\n`;
+      }
+    });
+  
+    // 🔥 Remove script src from HTML
+    htmlContent = htmlContent.replace(
+      /<script.*src=.*<\/script>/g,
+      ""
+    );
+  
+    // 🚀 FINAL HTML
     const finalHtml = `
       <html>
         <head>
@@ -66,28 +94,22 @@ export const useExecutionStore = create((set, get) => ({
         </head>
         <body>
           ${htmlContent}
+  
           <script>
-            // Capture console.log
+            // Console override
             const originalLog = console.log;
             console.log = (...args) => {
-              window.parent.postMessage({
-                type: "console",
-                data: args
-              }, "*");
+              window.parent.postMessage({ type: "console", data: args }, "*");
               originalLog.apply(console, args);
             };
-
+  
             // Error handling
-            window.onerror = function(message, source, lineno, colno, error) {
-              window.parent.postMessage({
-                type: "error",
-                data: message
-              }, "*");
-              return false;
+            window.onerror = function(message) {
+              window.parent.postMessage({ type: "error", data: message }, "*");
             };
-
+  
             try {
-              ${jsContent}
+              ${allJS}
             } catch (err) {
               window.parent.postMessage({
                 type: "error",
@@ -98,7 +120,11 @@ export const useExecutionStore = create((set, get) => ({
         </body>
       </html>
     `;
-
+  
     set({ compiledCode: finalHtml });
+  
+    setTimeout(() => {
+      get().setIsRunning(false);
+    }, 500);
   }
 }));

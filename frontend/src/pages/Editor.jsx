@@ -1,4 +1,4 @@
-import { useMemo, useRef, useCallback } from "react";
+import { useMemo, useRef, useCallback, useEffect } from "react";
 import { useParams } from "react-router-dom";
 
 import FileExplorer from "../features/filesystem/FileExplorer";
@@ -19,12 +19,16 @@ import { useExecutionStore } from "../features/execution/executionStore";
 // ✅ LAYOUT STORE
 import { useLayoutStore } from "../store/layoutStore";
 
+// ✅ EDITOR STORE (for Empty State)
+import { useEditorStore } from "../store/useEditorStore";
+
 export default function EditorPage() {
   useFileCollaboration();
-  const { id: projectId } = useParams(); // 🔥 Use strictly raw ID to prevent prefix collisions
+  const { id: projectId } = useParams();
 
   const doc = yjsStore.doc;
   const { runCode } = useExecutionStore();
+  const { activeFileId } = useEditorStore();
 
   const {
     sidebarOpen,
@@ -37,12 +41,10 @@ export default function EditorPage() {
 
   const sidebarRef = useRef(null);
   const previewRef = useRef(null);
-  const iframeBlockerRef = useRef(null); // Used to block iframe pointer events during drag
+  const iframeBlockerRef = useRef(null);
 
-  // ✅ AUTO SAVE HOOK - Uses precise raw ID mappings
   const saveStatus = useAutoSave(doc, projectId);
 
-  // ✅ MANUAL SAVE (STABLE) - Directly invokes global integrated store system
   const handleSave = useMemo(() => {
     return async () => {
       try {
@@ -53,6 +55,23 @@ export default function EditorPage() {
       }
     };
   }, [projectId]);
+
+  // ✅ GLOBAL KEYBOARD SHORTCUTS
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "s") {
+        e.preventDefault();
+        handleSave();
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+        e.preventDefault();
+        runCode();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [handleSave, runCode]);
 
   // --- RESIZE LOGIC ---
   const handleSidebarDrag = useCallback((e) => {
@@ -116,16 +135,13 @@ export default function EditorPage() {
   return (
     <div style={{ height: "100vh", display: "flex", flexDirection: "column", position: "relative" }}>
       
-      {/* Invisible overlay for iframe protection during drag */}
       <div 
         ref={iframeBlockerRef} 
         style={{ position: "absolute", inset: 0, zIndex: 9999, display: "none", cursor: "col-resize" }}
       />
 
-      {/* 🔥 NAVBAR */}
       <Navbar onSave={handleSave} saveStatus={saveStatus} onRun={runCode} />
 
-      {/* 🔥 MAIN LAYOUT */}
       <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
         
         {/* SIDEBAR */}
@@ -157,14 +173,23 @@ export default function EditorPage() {
           />
         )}
 
-        {/* EDITOR */}
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", minWidth: 300 }}>
-          <Tabs />
-          <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
-            <div style={{ flex: 1, minWidth: 0, height: "100%" }}>
-              <EditorView />
+        {/* EDITOR OR EMPTY STATE */}
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", minWidth: 300, backgroundColor: "#1e1e1e" }}>
+          {activeFileId ? (
+            <>
+              <Tabs />
+              <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
+                <div style={{ flex: 1, minWidth: 0, height: "100%" }}>
+                  <EditorView />
+                </div>
+              </div>
+            </>
+          ) : (
+            <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "#666", flexDirection: "column" }}>
+              <h2 style={{ fontWeight: 400, marginBottom: "8px" }}>No file selected</h2>
+              <p style={{ fontSize: "14px" }}>Select or upload a file to start coding</p>
             </div>
-          </div>
+          )}
         </div>
 
         {/* PREVIEW RESIZER */}

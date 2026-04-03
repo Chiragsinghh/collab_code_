@@ -8,11 +8,33 @@ const projectSchema = new mongoose.Schema(
     },
     name: {
       type: String,
-      default: "Untitled Project"
+      default: "Untitled Project",
     },
+    owner: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      index: true,
+    },
+    collaborators: [
+      {
+        user: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "User",
+        },
+        role: {
+          type: String,
+          enum: ["editor", "viewer"],
+          default: "editor",
+        },
+      },
+    ],
     ydoc: {
-      type: Buffer, 
-    }
+      type: Buffer,
+    },
+    isPublic: {
+      type: Boolean,
+      default: false,
+    },
   },
   { timestamps: true }
 );
