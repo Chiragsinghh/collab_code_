@@ -1,9 +1,11 @@
 import { useRef, useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { yjsStore } from '../features/collaboration/yjsStore';
 import { useLayoutStore } from '../store/layoutStore';
 import { useExecutionStore } from '../features/execution/executionStore';
 import { processFolderUpload } from '../utils/folderUpload';
 import { useEditorStore } from '../store/useEditorStore';
+import useAuthStore from '../store/useAuthStore';
 
 function Navbar({ onSave, saveStatus, onRun }) {
     const { 
@@ -14,14 +16,13 @@ function Navbar({ onSave, saveStatus, onRun }) {
 
     const { isRunning } = useExecutionStore();
     const { openFile } = useEditorStore();
+    const { user, logout } = useAuthStore();
+    const navigate = useNavigate();
     const fileInputRef = useRef(null);
 
     const [activeUsers, setActiveUsers] = useState([]);
 
     useEffect(() => {
-      // Setup awareness tracking. 
-      // Ideally run on interval to poll Yjs awareness state securely without heavy observers,
-      // or we can attach to yjsStore.provider.awareness 'change' event if accessible directly.
       const updateAwareness = () => {
         if (yjsStore.awareness) {
            const states = Array.from(yjsStore.awareness.getStates().values());
@@ -43,7 +44,6 @@ function Navbar({ onSave, saveStatus, onRun }) {
 
     const handleFileChange = async (e) => {
       await processFolderUpload(e, yjsStore.doc, yjsStore, openFile);
-      // Reset input so you can re-upload same folder if needed
       e.target.value = null; 
     };
 
@@ -66,9 +66,7 @@ function Navbar({ onSave, saveStatus, onRun }) {
       return null;
     };
 
-    // Calculate generic active users based on the state or simply show count + colors
     const renderActiveUsers = () => {
-      // Just fallback to minimum 1 if offline, but array rendering is neat.
       if (activeUsers.length === 0) return <span style={{ color: '#aaa', fontSize: '12px' }}>1 online</span>;
 
       return (
@@ -95,7 +93,7 @@ function Navbar({ onSave, saveStatus, onRun }) {
 
     return (
       <div style={{ height: '48px', backgroundColor: '#1a1a2e', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 20px', borderBottom: '1px solid #333', flexShrink: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }} onClick={() => navigate('/dashboard')}>
           <div style={{ width: '28px', height: '28px', backgroundColor: '#6c63ff', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', fontWeight: 'bold', color: '#fff' }}>C</div>
           <span style={{ color: '#fff', fontSize: '15px', fontWeight: '600' }}>CollabCode</span>
         </div>
@@ -158,9 +156,23 @@ function Navbar({ onSave, saveStatus, onRun }) {
             Save Project
           </button>
           
-          <button style={{ backgroundColor: '#6c63ff', color: '#fff', border: 'none', borderRadius: '8px', padding: '6px 14px', fontSize: '12px', fontWeight: '500', cursor: 'pointer' }}>
-            Share Room
-          </button>
+          <div style={{ width: '1px', height: '20px', backgroundColor: '#333', margin: '0 8px' }}></div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            {user?.avatar ? (
+              <img src={user.avatar} style={{ width: '28px', height: '28px', borderRadius: '50%' }} alt="avatar" />
+            ) : (
+              <div style={{ width: '28px', height: '28px', borderRadius: '50%', backgroundColor: '#6c63ff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '12px' }}>
+                {user?.name?.charAt(0) || 'U'}
+              </div>
+            )}
+            <button 
+              onClick={() => { logout(); navigate('/login'); }}
+              style={{ background: 'none', border: 'none', color: '#aaa', fontSize: '12px', cursor: 'pointer' }}
+            >
+              Logout
+            </button>
+          </div>
         </div>
       </div>
     )

@@ -70,7 +70,12 @@ class YjsStore {
 
     try {
       const res = await fetch(
-        `http://localhost:5001/project/${projectId}/load`
+        `http://localhost:5001/project/${projectId}/load`,
+        {
+          headers: {
+            "Authorization": `Bearer ${localStorage.getItem('token')}`
+          }
+        }
       );
       const data = await res.json();
 
@@ -108,7 +113,10 @@ class YjsStore {
         `http://localhost:5001/project/${projectId}/save`,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { 
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${localStorage.getItem('token')}`
+          },
           body: JSON.stringify({ ydoc }),
         }
       );
