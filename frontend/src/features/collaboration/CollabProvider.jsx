@@ -11,14 +11,14 @@ export function CollabProvider({ children }) {
   useEffect(() => {
     if (!id) return;
 
-    yjsStore.init(id);
-    setYdoc(yjsStore.doc);
-
-    console.log("✅ Yjs initialized for room:", id);
+    yjsStore.initProject(id).then(() => {
+      setYdoc(yjsStore.doc);
+      console.log("✅ Yjs initialized for project:", id);
+    });
 
     return () => {
       // Optional: uncomment if you want the room session to stop instantly on unmount
-      // yjsStore.destroy();
+      // yjsStore.destroyProject();
       // setYdoc(null);
     };
   }, [id]);

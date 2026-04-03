@@ -1,21 +1,18 @@
 import { useEffect, useRef, useState } from "react";
-import { exportProject } from "../collaboration/exportProject"; // adjust path if needed
-import axios from "axios";
+import { yjsStore } from "../collaboration/yjsStore";
 
-const AUTOSAVE_DELAY = 3000; // 3 seconds
+const AUTOSAVE_DELAY = 1500; // 1.5s debounce strictly fulfilling architecture reqs
 
 export const useAutoSave = (doc, projectId) => {
   const timerRef = useRef(null);
-  const lastSavedSnapshotRef = useRef(null);
   const isSavingRef = useRef(false);
 
-  const [status, setStatus] = useState("Saved"); // "Saving..." | "Saved"
+  const [status, setStatus] = useState("Saved"); // "Saving..." | "Saved" | "Error saving"
 
   useEffect(() => {
     if (!doc || !projectId) return;
 
     const handleUpdate = () => {
-      // Reset debounce timer
       if (timerRef.current) {
         clearTimeout(timerRef.current);
       }
@@ -24,39 +21,27 @@ export const useAutoSave = (doc, projectId) => {
         if (isSavingRef.current) return;
 
         try {
-          const snapshot = exportProject(doc);
-          const snapshotString = JSON.stringify(snapshot);
-
-          // 🚫 Prevent redundant saves
-          if (snapshotString === lastSavedSnapshotRef.current) {
-            return;
-          }
-
           isSavingRef.current = true;
           setStatus("Saving...");
 
-          await axios.post(
-            `http://localhost:5001/project/${projectId}/save`,
-            snapshot
-          );
+          // Synchronous fully compatible CRDT binary encoding integration to Mongo
+          await yjsStore.saveProjectToDB(projectId);
 
-          console.log("💾 Auto-saved at", new Date().toLocaleTimeString());
-
-          lastSavedSnapshotRef.current = snapshotString;
+          console.log("💾 Yjs Auto-saved pure CRDT state at", new Date().toLocaleTimeString());
           setStatus("Saved");
         } catch (err) {
           console.error("Auto-save failed:", err);
+          setStatus("Error saving");
         } finally {
           isSavingRef.current = false;
         }
       }, AUTOSAVE_DELAY);
     };
 
-    // ✅ Listen to Yjs updates
+    // ✅ Listen strictly to granular CRDT update pulses natively
     doc.on("update", handleUpdate);
 
     return () => {
-      // ✅ Cleanup (CRITICAL)
       doc.off("update", handleUpdate);
 
       if (timerRef.current) {

@@ -2,21 +2,16 @@ const mongoose = require("mongoose");
 
 const projectSchema = new mongoose.Schema(
   {
-    projectId: {
+    _id: {
       type: String,
       required: true,
-      unique: true,
-      index: true
     },
-    fileTree: {
-      type: mongoose.Schema.Types.Mixed,
-      default: {}
+    name: {
+      type: String,
+      default: "Untitled Project"
     },
-    // We utilize a native Mongoose Map dictating key (fileId) to value (String code)
-    files: {
-      type: Map,
-      of: String,
-      default: {}
+    ydoc: {
+      type: Buffer, 
     }
   },
   { timestamps: true }

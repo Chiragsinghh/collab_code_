@@ -3,8 +3,9 @@ const http = require("http");
 const WebSocket = require("ws");
 const { setupWSConnection } = require("y-websocket/bin/utils");
 const cors = require("cors");
-const mongoose = require("mongoose");
+const connectDB = require("./db/mongo");
 const projectRoutes = require("./routes/projectRoutes");
+
 const app = express();
 app.use(
   cors({
@@ -13,14 +14,14 @@ app.use(
     credentials: true,
   })
 );
-app.use(express.json()); // Enable JSON body parsing for payload sizes
 
-// Basic Mongoose startup mapping natively to backend Docker or local instance
-mongoose.connect("mongodb://localhost:27017/collabcode");
+// Enable large JSON body parsing to comfortably map base64 Y.Doc array payloads (usually 5-20mbs worst case)
+app.use(express.json({ limit: "50mb" })); 
+
+// Spin up persistence
+connectDB();
 
 app.use("/project", projectRoutes);
-
-// Initialize HTTP server needed for protocol upgrade
 const server = http.createServer(app);
 
 // Yjs WebSocket Server (No automatic listening, we handle upgrade manually)
