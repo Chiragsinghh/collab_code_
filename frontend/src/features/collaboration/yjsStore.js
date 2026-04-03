@@ -1,11 +1,21 @@
 import * as Y from "yjs";
 import { WebsocketProvider } from "y-websocket";
 
+// Simple debounce (no external dependency)
+function debounce(fn, delay) {
+  let timer;
+  return (...args) => {
+    clearTimeout(timer);
+    timer = setTimeout(() => fn(...args), delay);
+  };
+}
+
 class YjsStore {
   constructor() {
     this.doc = null;
     this.provider = null;
     this.roomId = null;
+    this._saveHandler = null;
   }
 
   get awareness() {
@@ -14,74 +24,99 @@ class YjsStore {
 
   async initProject(projectId) {
     const roomId = `project-${projectId}`;
+
+    // Prevent unnecessary re-init
     if (this.roomId === roomId && this.doc) return;
 
-    // Clean up old project bindings before connecting new
+    // 🔥 Clean previous project
     this.destroyProject();
 
     this.roomId = roomId;
     this.doc = new Y.Doc();
-    
-    // 1. Fetch saved update from backend
-    // 2. Apply update: Y.applyUpdate(ydoc, savedData)
-    // 3. Connect WebSocket provider strictly after DB loaded
+
     try {
+      // ✅ 1. LOAD FROM DB FIRST (CRITICAL)
       await this.loadProjectFromDB(projectId);
     } catch (e) {
-      console.error("❌ Failed to load project database initial state:", e);
+      console.error("❌ Failed to load project:", e);
     }
 
-    // Safety check just in case user clicked away before load finished
-    if (this.roomId !== roomId) return; 
+    // Safety check if user switched project mid-load
+    if (this.roomId !== roomId) return;
 
-    // Single global provider strictly confined to this project
+    // ✅ 2. THEN CONNECT WEBSOCKET
     this.provider = new WebsocketProvider(
-      `ws://localhost:5001/yjs`, 
+      "ws://localhost:5001/yjs",
       roomId,
       this.doc
     );
 
     this.provider.on("status", (event) => {
-      console.log(`🔌 Yjs Websocket status: ${event.status} (Project: ${projectId})`);
+      console.log(
+        `🔌 WebSocket: ${event.status} (Project: ${projectId})`
+      );
     });
+
+    // ✅ 3. AUTO-SAVE SETUP (SAFE + DEBOUNCED)
+    this._saveHandler = debounce(() => {
+      this.saveProjectToDB(projectId);
+    }, 1000);
+
+    this.doc.on("update", this._saveHandler);
   }
 
   async loadProjectFromDB(projectId) {
     if (!this.doc) return;
 
-    const res = await fetch(`http://localhost:5001/project/${projectId}/load`);
-    const data = await res.json();
-    
-    if (data.success && data.ydoc) {
-      // Decode base64 exactly as instructed
-      const binaryString = atob(data.ydoc);
-      const len = binaryString.length;
-      const bytes = new Uint8Array(len);
-      for (let i = 0; i < len; i++) {
-        bytes[i] = binaryString.charCodeAt(i);
+    try {
+      const res = await fetch(
+        `http://localhost:5001/project/${projectId}/load`
+      );
+      const data = await res.json();
+
+      // ✅ FIXED CONDITION (no data.success)
+      if (data.ydoc) {
+        const binaryString = atob(data.ydoc);
+
+        const bytes = Uint8Array.from(
+          binaryString,
+          (c) => c.charCodeAt(0)
+        );
+
+        // ✅ APPLY UPDATE BEFORE WEBSOCKET
+        Y.applyUpdate(this.doc, bytes);
+
+        console.log(`✅ Loaded project ${projectId} from DB`);
+      } else {
+        console.log(`⚠️ No saved data for project ${projectId}`);
       }
-      
-      Y.applyUpdate(this.doc, bytes);
-      console.log(`✅ Project ${projectId} loaded perfectly from DB`);
-    } else {
-       console.log(`⚠️ Project ${projectId} loaded empty from DB`);
+    } catch (err) {
+      console.error("❌ Load error:", err);
     }
   }
 
   async saveProjectToDB(projectId) {
     if (!this.doc) return;
 
-    // 1. Encode native Yjs stream globally
-    const update = Y.encodeStateAsUpdate(this.doc);
-    
-    // 2. Convert directly to Javascript Array natively as requested
-    const ydocArray = Array.from(update);
+    try {
+      const update = Y.encodeStateAsUpdate(this.doc);
 
-    await fetch(`http://localhost:5001/project/${projectId}/save`, {
-       method: "POST",
-       headers: { "Content-Type": "application/json" },
-       body: JSON.stringify({ ydocArray })
-    });
+      // ✅ FIXED KEY NAME
+      const ydoc = Array.from(update);
+
+      await fetch(
+        `http://localhost:5001/project/${projectId}/save`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ydoc }),
+        }
+      );
+
+      console.log(`💾 Auto-saved project ${projectId}`);
+    } catch (err) {
+      console.error("❌ Save error:", err);
+    }
   }
 
   getOrCreateText(fileId) {
@@ -90,15 +125,25 @@ class YjsStore {
   }
 
   destroyProject() {
+    // 🔥 Clean autosave listener
+    if (this.doc && this._saveHandler) {
+      this.doc.off("update", this._saveHandler);
+      this._saveHandler = null;
+    }
+
+    // 🔥 Destroy provider
     if (this.provider) {
       this.provider.disconnect();
       this.provider.destroy();
       this.provider = null;
     }
+
+    // 🔥 Destroy doc
     if (this.doc) {
       this.doc.destroy();
       this.doc = null;
     }
+
     this.roomId = null;
   }
 }
