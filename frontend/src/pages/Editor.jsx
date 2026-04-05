@@ -16,6 +16,10 @@ import { useAutoSave } from "../features/autosave/useAutoSave";
 import PreviewPanel from "../features/execution/PreviewPanel";
 import { useExecutionStore } from "../features/execution/executionStore";
 
+// ✅ CHAT SYSTEM
+import ChatPanel from "../features/chat/ChatPanel";
+import { useChatStore } from "../features/chat/useChatStore";
+
 // ✅ LAYOUT STORE
 import { useLayoutStore } from "../store/layoutStore";
 
@@ -36,7 +40,8 @@ export default function EditorPage() {
     sidebarWidth,
     previewWidth,
     setSidebarWidth,
-    setPreviewWidth
+    setPreviewWidth,
+    chatOpen
   } = useLayoutStore();
 
   const sidebarRef = useRef(null);
@@ -133,61 +138,55 @@ export default function EditorPage() {
   }, [previewWidth, setPreviewWidth]);
 
   return (
-    <div style={{ height: "100vh", display: "flex", flexDirection: "column", position: "relative" }}>
+    <div className="h-screen flex flex-col bg-[#0e0e12] relative overflow-hidden">
       
+      {/* Iframe Blocker for dragging */}
       <div 
         ref={iframeBlockerRef} 
-        style={{ position: "absolute", inset: 0, zIndex: 9999, display: "none", cursor: "col-resize" }}
+        className="absolute inset-0 z-[10000] hidden cursor-col-resize"
       />
 
       <Navbar onSave={handleSave} saveStatus={saveStatus} onRun={runCode} />
 
-      <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
+      <div className="flex flex-1 overflow-hidden">
         
-        {/* SIDEBAR */}
+        {/* SIDEBAR (File Explorer) */}
         <div 
           ref={sidebarRef}
-          style={{ 
-            width: sidebarOpen ? `${sidebarWidth}px` : "0px", 
-            display: sidebarOpen ? "block" : "none",
-            flexShrink: 0, overflow: "hidden",
-            borderRight: "1px solid #333", backgroundColor: "#1e1e1e"
-          }}
+          className={`flex-shrink-0 overflow-hidden bg-[#131317] transition-[width] duration-75 ${sidebarOpen ? '' : 'w-0'}`}
+          style={{ width: sidebarOpen ? `${sidebarWidth}px` : "0px" }}
         >
-          <FileExplorer />
+          <div className="h-full flex flex-col">
+            <FileExplorer />
+          </div>
         </div>
 
         {/* SIDEBAR RESIZER */}
         {sidebarOpen && (
           <div
             onMouseDown={handleSidebarDrag}
-            style={{
-              width: "4px",
-              cursor: "col-resize",
-              backgroundColor: "transparent",
-              transition: "background-color 0.2s",
-              zIndex: 10
-            }}
-            onMouseEnter={(e) => (e.target.style.backgroundColor = "#007acc")}
-            onMouseLeave={(e) => (e.target.style.backgroundColor = "transparent")}
+            className="w-1 cursor-col-resize bg-transparent hover:bg-[#ff9249] transition-colors z-10"
           />
         )}
 
-        {/* EDITOR OR EMPTY STATE */}
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", minWidth: 300, backgroundColor: "#1e1e1e" }}>
+        {/* MAIN EDITOR AREA */}
+        <div className="flex-1 flex flex-col overflow-hidden min-w-[300px] bg-[#0e0e12]">
           {activeFileId ? (
             <>
               <Tabs />
-              <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
-                <div style={{ flex: 1, minWidth: 0, height: "100%" }}>
+              <div className="flex-1 flex overflow-hidden">
+                <div className="flex-1 min-w-0 h-full">
                   <EditorView />
                 </div>
               </div>
             </>
           ) : (
-            <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "#666", flexDirection: "column" }}>
-              <h2 style={{ fontWeight: 400, marginBottom: "8px" }}>No file selected</h2>
-              <p style={{ fontSize: "14px" }}>Select or upload a file to start coding</p>
+            <div className="flex-1 flex flex-col items-center justify-center text-center p-8">
+              <div className="w-20 h-20 bg-[#ff924911] rounded-2xl flex items-center justify-center mb-6 border border-[#ff924922]">
+                <span className="text-4xl">🚀</span>
+              </div>
+              <h2 className="text-2xl font-bold font-[Space_Grotesk] text-[#fcf8fe] mb-2 uppercase tracking-tighter">Ready for Ignition</h2>
+              <p className="text-[#acaab0] text-sm max-w-xs leading-relaxed">Select a file from the explorer or create a new one to start your session.</p>
             </div>
           )}
         </div>
@@ -196,30 +195,26 @@ export default function EditorPage() {
         {previewOpen && (
           <div
             onMouseDown={handlePreviewDrag}
-            style={{
-              width: "4px",
-              cursor: "col-resize",
-              backgroundColor: "transparent",
-              transition: "background-color 0.2s",
-              zIndex: 10
-            }}
-            onMouseEnter={(e) => (e.target.style.backgroundColor = "#007acc")}
-            onMouseLeave={(e) => (e.target.style.backgroundColor = "transparent")}
+            className="w-1 cursor-col-resize bg-transparent hover:bg-[#ff9249] transition-colors z-10"
           />
         )}
 
-        {/* PREVIEW */}
+        {/* PREVIEW PANEL */}
         <div 
           ref={previewRef}
-          style={{ 
-            width: previewOpen ? `${previewWidth}px` : "0px", 
-            display: previewOpen ? "flex" : "none",
-            flexDirection: "column",
-            flexShrink: 0,
-            borderLeft: "1px solid #333", backgroundColor: "#fff" 
-          }}
+          className={`flex-shrink-0 flex flex-col bg-[#131317] border-l border-[#ffffff08] transition-[width] duration-75 ${previewOpen ? '' : 'w-0'}`}
+          style={{ width: previewOpen ? `${previewWidth}px` : "0px" }}
         >
           <PreviewPanel iframeBlockerRef={iframeBlockerRef} />
+        </div>
+
+        {/* CHAT PANEL */}
+        <div 
+          className={`flex-shrink-0 overflow-hidden bg-[#131317] border-l border-[#ffffff08] transition-[width] duration-75 ${chatOpen ? 'w-[320px]' : 'w-0'}`}
+        >
+          <div className="h-full w-[320px]">
+            <ChatPanel />
+          </div>
         </div>
 
       </div>
